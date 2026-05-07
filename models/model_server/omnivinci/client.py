@@ -15,7 +15,7 @@ class OmniVinciClient:
     def predict(self, request: InferenceRequest) -> InferenceResult:
         model_config = CONFIG.model("omnivinci")
         server_url = request.metadata.get("server_url") if request.metadata else None
-        server_url = server_url or model_config.get("server_url") or os.getenv("OMNIVINCI_SERVER_URL")
+        server_url = server_url or os.getenv("OMNIVINCI_SERVER_URL") or model_config.get("server_url")
         if not server_url:
             raise ValueError("Missing OmniVinci server_url. Please configure it in config/config.yaml or environment variables.")
 
@@ -26,6 +26,7 @@ class OmniVinciClient:
         if request.metadata:
             use_video = bool(request.metadata.get("use_video", True))
             use_audio = bool(request.metadata.get("use_audio", True))
+        visual_mask = bool(request.metadata.get("visual_mask", False)) if request.metadata else False
 
         client = OmniHttpClient(server_url)
         raw_answer = client.call_api(
@@ -34,6 +35,7 @@ class OmniVinciClient:
             user_prompt=user_prompt,
             use_video=use_video,
             use_audio=use_audio,
+            visual_mask=visual_mask,
             max_retries=CONFIG.runtime("max_retries", 5),
             retry_delay=CONFIG.runtime("request_delay", 0.0),
         )

@@ -6,6 +6,7 @@ from typing import Any
 
 from config.paths import PATHS
 from config.settings import CONFIG
+from models.pipeline.experiment import level1_asr_tag
 
 
 def modality_metadata(level: int) -> dict[str, Any]:
@@ -69,14 +70,17 @@ def add_row_modality(row: dict[str, Any], level: int) -> dict[str, Any]:
 
 
 def output_path_for(level: int, model_name: str) -> Path:
-    output_dir = CONFIG.benchmark(f"level{level}.output_dir", "")
-    output_pattern = CONFIG.benchmark(
+    output_dir = os.getenv(f"SOCIALOMNI_LEVEL{level}_OUTPUT_DIR") or CONFIG.benchmark(f"level{level}.output_dir", "")
+    output_pattern = os.getenv(f"SOCIALOMNI_LEVEL{level}_OUTPUT_PATTERN") or CONFIG.benchmark(
         f"level{level}.output_pattern",
         f"results_{{model}}_level{level}_{{modality}}.json",
     )
     meta = modality_metadata(level)
+    fields = dict(meta)
+    if level == 1:
+        fields["asr"] = level1_asr_tag()
     output_base = Path(output_dir) if output_dir else PATHS.results_dir
-    return output_base / output_pattern.format(model=model_name, **meta)
+    return output_base / output_pattern.format(model=model_name, **fields)
 
 
 def _experiment_note(meta: dict[str, Any]) -> str:

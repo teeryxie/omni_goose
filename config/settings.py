@@ -50,6 +50,7 @@ def _default_config() -> Dict[str, Any]:
                 "output_pattern": "results_{model}_level1_{modality}.json",
                 "log_dir": "",
                 "modality": "avt",
+                "include_asr": False,
                 "user_prompt": "",
                 "max_retries": 5,
                 "retry_delay": 3,

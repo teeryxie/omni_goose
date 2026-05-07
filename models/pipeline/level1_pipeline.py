@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 import logging
 import time
 import os
@@ -13,6 +12,12 @@ from typing import List, Optional
 
 from config.paths import PATHS
 from config.settings import CONFIG
+from models.pipeline.answer_extraction import extract_choice
+from models.pipeline.experiment import (
+    add_level1_experiment_metadata,
+    add_level1_row_metadata,
+    level1_include_asr,
+)
 from models.pipeline.model_client import ModelClient
 from models.pipeline.modality import add_payload_modality, add_row_modality, modality_metadata, output_path_for
 from models.pipeline.types import InferenceRequest, InferenceResult
@@ -65,7 +70,10 @@ class Level1Pipeline:
         meta = modality_metadata(1)
         use_video, use_audio = bool(meta["use_video"]), bool(meta["use_audio"])
         asr_content = sample.get("asr_content") or ""
+        include_asr = level1_include_asr()
         if not use_audio:
+            asr_content = ""
+        if not include_asr:
             asr_content = ""
 
         prompt_parts = []
@@ -89,26 +97,15 @@ class Level1Pipeline:
                 "correct_answer": sample.get("correct_answer"),
                 "sample_id": sample.get("id"),
                 "asr_content": asr_content,
+                "include_asr": include_asr,
                 "user_prompt": user_prompt,
                 "use_video": use_video, "use_audio": use_audio,
                 "visual_mask": bool(meta.get("visual_mask", False)),
             },
         )
 
-    def _resolve_modality(self) -> tuple[bool, bool]:
-        meta = modality_metadata(1)
-        return bool(meta["use_video"]), bool(meta["use_audio"])
-
     def _normalize_answer(self, answer: str) -> str:
-        answer = (answer or "").strip()
-        if not answer:
-            return ""
-        if answer[0].upper() in {"A", "B", "C", "D"}:
-            return answer[0].upper()
-        match = re.search(r"\b([A-D])\b", answer.upper())
-        if match:
-            return match.group(1)
-        return answer
+        return extract_choice(answer, {"A", "B", "C", "D"})
 
     def _score(self, prediction: str, correct: Optional[str]) -> bool:
         if not correct:
@@ -119,6 +116,7 @@ class Level1Pipeline:
         return bool(row.get("scored", True))
 
     def _save_payload(self, payload: dict) -> None:
+        payload = add_level1_experiment_metadata(payload)
         self.config.output_path.parent.mkdir(parents=True, exist_ok=True)
         temp_path = self.config.output_path.with_suffix(".tmp")
         with open(temp_path, "w", encoding="utf-8") as f:
@@ -331,7 +329,7 @@ class Level1Pipeline:
                 else:
                     skipped_failed += 1
                 _upsert_result(
-                    add_row_modality({
+                    add_level1_row_metadata(add_row_modality({
                         "id": sample_id,
                         "video_path": sample.get("video_path"),
                         "question": sample.get("question"),
@@ -343,7 +341,7 @@ class Level1Pipeline:
                         "scored": False,
                         "skip_reason": outcome.get("skip_reason"),
                         "skip_error": outcome.get("skip_error"),
-                    }, 1)
+                    }, 1))
                 )
                 self.logger.warning(
                     "[%s] skipped due to %s: %s",
@@ -364,7 +362,7 @@ class Level1Pipeline:
                 if is_correct:
                     correct += 1
                 _upsert_result(
-                    add_row_modality({
+                    add_level1_row_metadata(add_row_modality({
                         "id": sample_id,
                         "video_path": sample.get("video_path"),
                         "question": sample.get("question"),
@@ -374,7 +372,7 @@ class Level1Pipeline:
                         "raw_response": raw_response,
                         "is_correct": is_correct,
                         "scored": True,
-                    }, 1)
+                    }, 1))
                 )
                 self.logger.info(
                     "[%s] prediction=%s correct=%s",
@@ -474,9 +472,9 @@ class Level1Pipeline:
 
 
 def default_level1_config(model_name: str) -> Level1Config:
-    dataset_path_raw = CONFIG.benchmark("level1.dataset_path", "")
-    video_dir_raw = CONFIG.benchmark("level1.video_dir", "")
-    log_dir = CONFIG.benchmark("level1.log_dir", "")
+    dataset_path_raw = os.getenv("SOCIALOMNI_LEVEL1_DATASET") or CONFIG.benchmark("level1.dataset_path", "")
+    video_dir_raw = os.getenv("SOCIALOMNI_LEVEL1_VIDEO_DIR") or CONFIG.benchmark("level1.video_dir", "")
+    log_dir = os.getenv("SOCIALOMNI_LEVEL1_LOG_DIR") or CONFIG.benchmark("level1.log_dir", "")
 
     dataset_path = Path(dataset_path_raw) if dataset_path_raw else PATHS.data_level_1 / "dataset.json"
     video_dir = Path(video_dir_raw) if video_dir_raw else PATHS.data_level_1 / "videos"

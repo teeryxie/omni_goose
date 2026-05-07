@@ -1,7 +1,9 @@
 import argparse
 import os
+import shutil
 import sys
 import tempfile
+import traceback
 import warnings
 from pathlib import Path
 
@@ -13,6 +15,8 @@ if str(ROOT) not in sys.path:
 
 from config.settings import CONFIG
 from models.model_server.local_common.gpu_visibility import configure_cuda_visible_devices
+from models.model_server.local_common.media_masking import create_black_frame_video
+from models.model_server.local_common.remote_code_cache import sync_remote_code_cache
 from models.model_server.local_common.transformers_compat import (
     ensure_all_tied_weights_keys,
     ensure_transformers_no_init_weights,
@@ -54,16 +58,27 @@ def _parse_bool(value: str | None, default: bool = True) -> bool:
     return default
 
 
+def _load_processor():
+    from transformers import AutoProcessor
+
+    try:
+        return AutoProcessor.from_pretrained(MODEL_PATH, trust_remote_code=True)
+    except FileNotFoundError:
+        sync_remote_code_cache(MODEL_PATH, "omnivinci")
+        return AutoProcessor.from_pretrained(MODEL_PATH, trust_remote_code=True)
+
+
 def load_model():
     global model, processor, config, generation_config, model_loaded
 
     if model_loaded:
         return
 
-    from transformers import AutoConfig, AutoModel, AutoProcessor
+    from transformers import AutoConfig, AutoModel
     import torch
 
     print(f"Loading OmniVinci model to GPUs {os.environ.get('CUDA_VISIBLE_DEVICES')}...")
+    sync_remote_code_cache(MODEL_PATH, "omnivinci")
 
     ensure_transformers_no_init_weights()
     ensure_all_tied_weights_keys()
@@ -75,7 +90,7 @@ def load_model():
         torch_dtype=torch.bfloat16,
         device_map="auto",
     )
-    processor = AutoProcessor.from_pretrained(MODEL_PATH, trust_remote_code=True)
+    processor = _load_processor()
 
     generation_config = model.default_generation_config
     generation_config.update(max_new_tokens=MAX_NEW_TOKENS)
@@ -96,20 +111,33 @@ def load_model():
     print("Model loaded successfully.")
 
 
-def _build_conversation(video_path: str, question: str):
+def _build_conversation(media_path: str, question: str, use_video: bool):
+    media_item = {"type": "video", "video": str(media_path)} if use_video else {"type": "audio", "audio": str(media_path)}
     return [
         {
             "role": "user",
             "content": [
-                {"type": "video", "video": str(video_path)},
+                media_item,
                 {"type": "text", "text": question},
             ],
         }
     ]
 
 
-def run_inference(video_path: str, question: str, use_video: bool, use_audio: bool) -> str:
+def run_inference(
+    video_path: str,
+    question: str,
+    use_video: bool,
+    use_audio: bool,
+    visual_mask: bool = False,
+    temp_dir: str | None = None,
+) -> str:
     assert model_loaded and model is not None and processor is not None, "Model is not loaded"
+    inference_video_path = video_path
+    if visual_mask and use_video:
+        if temp_dir is None:
+            raise RuntimeError("temp_dir is required for visual_mask=True")
+        inference_video_path = create_black_frame_video(video_path, temp_dir)
 
     model.config.load_audio_in_video = LOAD_AUDIO_IN_VIDEO and use_audio
     processor.config.load_audio_in_video = LOAD_AUDIO_IN_VIDEO and use_audio
@@ -121,7 +149,7 @@ def run_inference(video_path: str, question: str, use_video: bool, use_audio: bo
         model.config.num_video_frames = 0
         processor.config.num_video_frames = 0
 
-    conversation = _build_conversation(video_path, question)
+    conversation = _build_conversation(inference_video_path, question, use_video)
     text = processor.apply_chat_template(conversation, tokenize=False, add_generation_prompt=True)
 
     inputs = processor([text])
@@ -178,6 +206,7 @@ def analyze_video():
     question = request.form.get("question", "")
     use_video = _parse_bool(request.form.get("use_video"), True)
     use_audio = _parse_bool(request.form.get("use_audio"), LOAD_AUDIO_IN_VIDEO)
+    visual_mask = _parse_bool(request.form.get("visual_mask"), False)
     if not question.strip():
         return jsonify({"error": "Question cannot be empty"}), 400
 
@@ -189,16 +218,15 @@ def analyze_video():
         temp_path = os.path.join(temp_dir, video_file.filename)
         video_file.save(temp_path)
 
-        answer = run_inference(temp_path, question, use_video, use_audio)
+        answer = run_inference(temp_path, question, use_video, use_audio, visual_mask, temp_dir)
         return jsonify({"status": "success", "answer": answer.strip()})
     except Exception as exc:  # noqa: BLE001
+        traceback.print_exc()
         return jsonify({"status": "error", "error": str(exc)}), 500
     finally:
         try:
-            if temp_path and os.path.exists(temp_path):
-                os.remove(temp_path)
             if temp_dir and os.path.exists(temp_dir):
-                os.rmdir(temp_dir)
+                shutil.rmtree(temp_dir, ignore_errors=True)
         except Exception:
             pass
 

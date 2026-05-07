@@ -15,7 +15,7 @@ class Qwen3OmniClient:
     def predict(self, request: InferenceRequest) -> InferenceResult:
         model_config = CONFIG.model("qwen3_omni")
         server_url = request.metadata.get("server_url") if request.metadata else None
-        server_url = server_url or model_config.get("server_url") or os.getenv("QWEN3_OMNI_SERVER_URL")
+        server_url = server_url or os.getenv("QWEN3_OMNI_SERVER_URL") or model_config.get("server_url")
         if not server_url:
             raise ValueError("Missing Qwen3-Omni server_url. Please configure it in config/config.yaml or environment variables.")
 

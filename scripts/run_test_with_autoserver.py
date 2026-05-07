@@ -50,6 +50,11 @@ def is_local_model(model_name: str) -> bool:
 
 def resolve_endpoint(model_name: str) -> ServerEndpoint:
     model_cfg = CONFIG.model(model_name)
+    env_port = os.getenv(f"{model_name.upper()}_SERVER_PORT") or os.getenv("SOCIALOMNI_SERVER_PORT")
+    if env_port:
+        port = int(env_port)
+        host = str(model_cfg.get("host", "127.0.0.1")).strip() or "127.0.0.1"
+        return ServerEndpoint(host=host, port=port, base_url=f"http://{host}:{port}")
     server_url = str(model_cfg.get("server_url", "")).strip()
     if server_url:
         parsed = urlparse(server_url)
@@ -148,6 +153,7 @@ def run_benchmark(
     resume: bool,
     progress_interval: int,
     level: int,
+    server_url: Optional[str] = None,
 ) -> tuple[int, str]:
     runner = "run_benchmark.py" if level == 1 else "run_benchmark_level2.py"
     cmd = [
@@ -162,6 +168,8 @@ def run_benchmark(
         cmd.append("--resume")
     env = os.environ.copy()
     env["SOCIALOMNI_ROOT"] = str(ROOT)
+    if server_url:
+        env[f"{model_name.upper()}_SERVER_URL"] = server_url
 
     # Temporarily overriding output directory is not supported via environment variables.
     # Keep runner behavior unchanged and use standard files under results/.
@@ -386,6 +394,7 @@ def main() -> None:
             resume=args.resume,
             progress_interval=args.progress_interval,
             level=args.level,
+            server_url=endpoint.base_url if is_local_model(model_name) else None,
         )
         test_log.write_text(output, encoding="utf-8")
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import subprocess
 import tempfile
@@ -13,11 +14,19 @@ from typing import Any, Optional
 
 from config.paths import PATHS
 from config.settings import CONFIG
+from models.pipeline.answer_extraction import extract_choice
 from models.pipeline.model_client import ModelClient
 from models.pipeline.modality import add_payload_modality, add_row_modality, modality_metadata, output_path_for
 from models.pipeline.types import InferenceRequest
 from models.utils.dataset_downloader import ensure_default_dataset_available
 from models.utils.openai_compat_tester import OpenAICompatTester
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 @dataclass(frozen=True)
@@ -79,10 +88,6 @@ class Level2Pipeline:
             return payload
         raise ValueError(f"Unsupported Level2 dataset format: {self.config.dataset_path}")
 
-    def _resolve_modality(self) -> tuple[bool, bool]:
-        meta = modality_metadata(2)
-        return bool(meta["use_video"]), bool(meta["use_audio"])
-
     def _parse_timestamp_to_seconds(self, timestamp_str: Any) -> float:
         text = str(timestamp_str or "").strip()
         if not text:
@@ -131,16 +136,10 @@ class Level2Pipeline:
             return False
 
     def _normalize_q1_prediction(self, text: str) -> str:
-        s = (text or "").strip()
-        if not s:
-            return ""
-        up = s.upper()
-        if up[0] in {"A", "B"}:
-            return up[0]
-        m = re.search(r"\b([AB])\b", up)
-        if m:
-            return m.group(1)
-        low = s.lower()
+        choice = extract_choice(text, {"A", "B"})
+        if choice:
+            return choice
+        low = (text or "").lower()
         if "yes" in low:
             return "A"
         if "no" in low:
@@ -211,6 +210,8 @@ class Level2Pipeline:
         return min(buckets, key=lambda b: abs(b - value))
 
     def _judge_q2(self, reference_answer: str, candidate_answer: str, video_path_for_api: str) -> int:
+        if _env_bool("SOCIALOMNI_LEVEL2_OFFLINE_Q2") or _env_bool("LEVEL2_OFFLINE_Q2"):
+            return -1
         if not candidate_answer.strip():
             return 0
         tester, model_cfg, _ = self._get_judge()
@@ -320,7 +321,8 @@ class Level2Pipeline:
                     },
                 )
                 q2_response = self._infer_with_retry(q2_request)
-                q2_score = self._judge_q2(q2_reference, q2_response, str(original_video_path))
+                q2_score_raw = self._judge_q2(q2_reference, q2_response, str(original_video_path))
+                q2_score = None if q2_score_raw < 0 else q2_score_raw
             else:
                 q2_score = 0
         else:
@@ -454,15 +456,16 @@ class Level2Pipeline:
 
 
 def default_level2_config(model_name: str) -> Level2Config:
-    dataset_path_raw = CONFIG.benchmark("level2.dataset_path", "")
-    video_dir_raw = CONFIG.benchmark("level2.video_dir", "")
-    log_dir = CONFIG.benchmark("level2.log_dir", "")
+    dataset_path_raw = os.getenv("SOCIALOMNI_LEVEL2_DATASET") or CONFIG.benchmark("level2.dataset_path", "")
+    video_dir_raw = os.getenv("SOCIALOMNI_LEVEL2_VIDEO_DIR") or CONFIG.benchmark("level2.video_dir", "")
+    log_dir = os.getenv("SOCIALOMNI_LEVEL2_LOG_DIR") or CONFIG.benchmark("level2.log_dir", "")
     max_retries = int(CONFIG.benchmark("level2.max_retries", 5) or 5)
     retry_delay = float(CONFIG.benchmark("level2.retry_delay", 3) or 3)
 
     dataset = Path(dataset_path_raw) if dataset_path_raw else PATHS.data_dir / "level_2" / "annotations.json"
     videos = Path(video_dir_raw) if video_dir_raw else PATHS.data_dir / "level_2" / "videos"
-    output_path = output_path_for(2, model_name)
+    output_path_raw = os.getenv("SOCIALOMNI_LEVEL2_OUTPUT")
+    output_path = Path(output_path_raw) if output_path_raw else output_path_for(2, model_name)
     logs = Path(log_dir) if log_dir else PATHS.results_logs
 
     if not dataset_path_raw and not video_dir_raw:

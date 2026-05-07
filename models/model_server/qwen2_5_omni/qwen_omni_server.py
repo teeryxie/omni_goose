@@ -16,6 +16,7 @@ from qwen_omni_utils import process_mm_info
 
 from config.settings import CONFIG
 from models.model_server.local_common.gpu_visibility import configure_cuda_visible_devices
+from models.model_server.local_common.media_masking import create_black_frame_video
 
 app = Flask(__name__)
 logger = logging.getLogger("qwen2_5_omni_server")
@@ -116,13 +117,18 @@ def build_conversation(video_path, question, use_video=True, use_audio=True):
     ]
 
 
-def process_video_analysis(video_path, question, use_video, use_audio):
+def process_video_analysis(video_path, question, use_video, use_audio, visual_mask=False, temp_dir=None):
     """Process video analysis"""
     global model, processor
     use_audio_in_video = USE_AUDIO_IN_VIDEO and use_audio
+    inference_video_path = video_path
+    if visual_mask and use_video:
+        if temp_dir is None:
+            raise RuntimeError("temp_dir is required for visual_mask=True")
+        inference_video_path = create_black_frame_video(video_path, temp_dir)
     
     # Build conversation
-    conversation = build_conversation(video_path, question, use_video=use_video, use_audio=use_audio)
+    conversation = build_conversation(inference_video_path, question, use_video=use_video, use_audio=use_audio)
     
     # Prepare inputs
     text = processor.apply_chat_template(conversation, add_generation_prompt=True, tokenize=False)
@@ -195,6 +201,7 @@ def analyze_video():
         question = request.form.get('question', '')
         use_video = _parse_bool(request.form.get("use_video"), True)
         use_audio = _parse_bool(request.form.get("use_audio"), USE_AUDIO_IN_VIDEO)
+        visual_mask = _parse_bool(request.form.get("visual_mask"), False)
         if not question.strip():
             return jsonify({"error": "Question cannot be empty"}), 400
             
@@ -204,7 +211,7 @@ def analyze_video():
         video_file.save(temp_path)
         
         # Process video analysis
-        answer = process_video_analysis(temp_path, question, use_video, use_audio)
+        answer = process_video_analysis(temp_path, question, use_video, use_audio, visual_mask, temp_dir)
         
         # Simplified response format
         return jsonify({
