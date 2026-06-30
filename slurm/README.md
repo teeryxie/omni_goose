@@ -58,3 +58,19 @@ sbatch \
 - `TEST_TIMEOUT`：评测超时秒数，默认 `86400`
 
 模型权重路径由 `config/config.yaml` 管理，当前默认指向 `/publicssd/xty/models`。
+
+## Qwen3-Omni 多视角初标
+
+初标流水线使用独立作业脚本：
+
+```bash
+sbatch \
+  --nodelist=gpu8 \
+  --gpus-per-node=2 \
+  --export=ALL,LIMIT=3,GAME_ID=g001,RESUME=1 \
+  slurm/qwen3_annotation_pipeline.slurm
+```
+
+完整说明见 `docs/qwen3_omni_annotation_pipeline.zh-CN.md`。该作业会在同一个 Slurm 任务内启动
+`/publicssd/xty/models/Qwen3-Omni-30B-A3B-Instruct` 对应的本地 HTTP 服务，再调用
+`scripts/run_qwen_annotation.py --backend local`。

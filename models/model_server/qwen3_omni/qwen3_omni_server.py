@@ -12,6 +12,7 @@ import logging
 import shutil
 import traceback
 from flask import Flask, request, jsonify
+import torch
 
 from config.settings import CONFIG
 from config.paths import PATHS
@@ -42,9 +43,19 @@ if not logger.handlers:
     logger.addHandler(file_handler)
 
 # Global configuration
-MODEL_PATH = CONFIG.model("qwen3_omni").get("model_path") or "/publicssd/xty/models/Qwen3-Omni-30B-A3B-Instruct"
+MODEL_PATH = (
+    os.getenv("QWEN3_OMNI_MODEL_PATH")
+    or CONFIG.model("qwen3_omni").get("model_path")
+    or "/publicssd/xty/models/Qwen3-Omni-30B-A3B-Instruct"
+)
 USE_AUDIO_IN_VIDEO = CONFIG.model("qwen3_omni").get("use_audio_in_video", True)
-MAX_TOKENS = CONFIG.model("qwen3_omni").get("max_tokens", 50)
+MAX_TOKENS = int(
+    os.getenv("QWEN3_OMNI_MAX_TOKENS")
+    or CONFIG.model("qwen3_omni").get("max_tokens", 50)
+)
+VIDEO_FPS = float(os.getenv("QWEN3_OMNI_VIDEO_FPS", "0.5"))
+VIDEO_MAX_FRAMES = int(os.getenv("QWEN3_OMNI_VIDEO_MAX_FRAMES", "32"))
+VIDEO_MAX_PIXELS = int(os.getenv("QWEN3_OMNI_VIDEO_MAX_PIXELS", "200704"))
 
 # Global variables
 model = None
@@ -93,7 +104,14 @@ def build_conversation(video_path, question, use_video=True, use_audio=True):
     """Build conversation format"""
     content = []
     if use_video:
-        content.append({"type": "video", "video": video_path})
+        video_payload = {
+            "type": "video",
+            "video": video_path,
+            "fps": VIDEO_FPS,
+            "max_frames": VIDEO_MAX_FRAMES,
+            "max_pixels": VIDEO_MAX_PIXELS,
+        }
+        content.append(video_payload)
     elif use_audio:
         content.append({"type": "audio", "audio": video_path})
     content.append({"type": "text", "text": question})
@@ -219,6 +237,8 @@ def analyze_video():
         })
 
     except Exception as e:
+        if isinstance(e, torch.cuda.OutOfMemoryError):
+            torch.cuda.empty_cache()
         logger.error("Analyze failed: %s", e)
         logger.error("Traceback:\n%s", traceback.format_exc())
         return jsonify({

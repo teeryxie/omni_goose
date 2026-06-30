@@ -21,9 +21,22 @@ dist/
 config/.env
 config/.env.*
 
+# Local agent/project instructions
+/AGENTS.md
+/docs/local_*.md
+/docs/*_local*.md
+/docs/*_agent*.md
+
+# Private GitHub deploy keys and local SSH material
+/ssh_github/
+/ssh_github/*
+
 # Data and results
 /data/*
 !/data/README.md
+/annotations_qwen/
+/goose_data/
+/runs/
 /results/*
 !/results/.gitkeep
 
