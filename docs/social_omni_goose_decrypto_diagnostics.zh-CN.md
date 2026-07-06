@@ -59,7 +59,7 @@ benchmark/social_omni_goose_v1/
 
 ## Qwen3-Omni 质量默认值
 
-Decrypto-style 诊断层不能继续使用 4096-token 粗标默认值。Slurm 模板 `slurm/qwen3_omni_decrypto_diagnostics.slurm` 固定以下质量优先配置：
+Decrypto-style 诊断层不能继续使用 4096-token 粗标默认值。Slurm 模板 `configs/slurm/qwen3_omni_decrypto_diagnostics.slurm` 固定以下质量优先配置：
 
 ```text
 QWEN3_OMNI_MAX_TOKENS=16384
@@ -180,20 +180,20 @@ hidden_gold for scorer only
 ## 运行命令
 
 ```bash
-.venv/bin/python scripts/build_oracle_trajectory_ledger.py \
+.venv/bin/python tools/build/build_oracle_trajectory_ledger.py \
   --release-root runs/omni_goose_gameplay_pass1/release_benchmark_v2 \
   --output-root annotations_qwen \
   --game-id g001
 
-.venv/bin/python scripts/build_decrypto_style_diagnostics.py \
+.venv/bin/python tools/build/build_decrypto_style_diagnostics.py \
   --annotation-root annotations_qwen \
   --limit 240
 
-.venv/bin/python scripts/export_social_omni_goose_benchmark.py \
+.venv/bin/python tools/package/export_social_omni_goose_benchmark.py \
   --annotation-root annotations_qwen \
   --benchmark-root benchmark/social_omni_goose_v1
 
-.venv/bin/python scripts/validate_decrypto_style_outputs.py \
+.venv/bin/python tools/validate/validate_decrypto_style_outputs.py \
   --annotation-root annotations_qwen \
   --benchmark-root benchmark/social_omni_goose_v1 \
   --output benchmark/social_omni_goose_v1/reports/validation.json

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from socialomni_annotation.omni_goose.decrypto_diagnostics import (
+from socialomni_goose.decrypto_diagnostics import (
     PLAYERS,
     build_claim_truth_links,
     build_decrypto_diagnostics,
@@ -20,7 +20,7 @@ from socialomni_annotation.omni_goose.decrypto_diagnostics import (
     validate_decrypto_outputs,
     write_jsonl,
 )
-from scripts.build_decrypto_human_verified_subset import merge_human_verified_passes
+from tools.build.build_decrypto_human_verified_subset import merge_human_verified_passes
 from work.build_claim_truth_extra_targets import edge_lookup, validate_claim_truth_spec
 import work.build_behavior_outcome_d_candidates as behavior_outcome_d
 import work.build_decrypto_clip_review_pack as clip_review
@@ -38,8 +38,8 @@ import work.report_meeting_claim_total_progress as meeting_claim_total_progress
 import work.report_scope_limited_gold_release as scope_release_report
 import work.sync_meeting_claim_extension_state as meeting_claim_sync
 import work.write_meeting_claim_gold_merge_review_records as gold_merge_review_records
-from scripts import run_decrypto_high_quality_review as high_quality_review
-from scripts import submit_omni_goose_oracle_jobs as submit_oracle_jobs
+from tools.annotation import run_decrypto_high_quality_review as high_quality_review
+from tools.annotation import submit_omni_goose_oracle_jobs as submit_oracle_jobs
 from work.build_delayed_reveal_from_verified_anchors import validate_delayed_reveal_spec
 from work.build_delayed_reveal_visual_precheck_pack import compose_quad, load_skipped_clusters
 
@@ -1630,9 +1630,9 @@ def test_oracle_submit_defaults_use_high_quality_qwen_settings(monkeypatch) -> N
 
 def test_oracle_slurm_defaults_use_high_quality_qwen_settings() -> None:
     for rel in [
-        "slurm/qwen3_omni_oracle_2gpu_stage.slurm",
-        "slurm/qwen3_omni_oracle_4x2_local.slurm",
-        "slurm/qwen3_omni_oracle_local_array.slurm",
+        "configs/slurm/qwen3_omni_oracle_2gpu_stage.slurm",
+        "configs/slurm/qwen3_omni_oracle_4x2_local.slurm",
+        "configs/slurm/qwen3_omni_oracle_local_array.slurm",
     ]:
         text = Path(rel).read_text(encoding="utf-8")
 

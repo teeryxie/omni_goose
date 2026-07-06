@@ -4,7 +4,7 @@ import json
 import shutil
 from pathlib import Path
 
-from scripts.validate_social_omni_leaderboard_core import validate_leaderboard_core
+from tools.validate.validate_social_omni_leaderboard_core import validate_leaderboard_core
 
 
 PROBE_TYPES = [

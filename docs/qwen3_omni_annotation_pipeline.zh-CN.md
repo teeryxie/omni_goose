@@ -28,13 +28,13 @@ cd /public/home/xty/workdir/omni_goose/SocialOmni
 sbatch \
   --gpus-per-node=2 \
   --export=ALL,RUN_SYNC=1,SKIP_SPLIT=1,LIMIT=0,GAME_ID=g001,RESUME=0,OVERWRITE_SYNC_REVIEW=1 \
-  slurm/qwen3_annotation_pipeline.slurm
+  configs/slurm/qwen3_annotation_pipeline.slurm
 ```
 
 只在已有本地服务上调试同步：
 
 ```bash
-uv run python scripts/infer_sync_offsets.py \
+uv run python tools/build/infer_sync_offsets.py \
   --backend local \
   --server-url http://127.0.0.1:5090 \
   --game-id g001 \
@@ -44,7 +44,7 @@ uv run python scripts/infer_sync_offsets.py \
 也可以先生成人工模板：
 
 ```bash
-uv run python scripts/mark_game_starts.py --raw-dir data/raw --probe-duration
+uv run python tools/build/mark_game_starts.py --raw-dir data/raw --probe-duration
 ```
 
 同步结果必须人工抽查 `data/processed/sync_offsets.json` 和 `data/processed/sync_review/`。每条记录里的 `raw_start_sec` 是第一局开始时刻。例如：
@@ -74,7 +74,7 @@ docs/goose_goose_duck_common_knowledge.zh-CN.md
 最终回合边界必须由 Qwen3-Omni 基于视频内容推理得到，并保留可审查证据、置信度和来源 POV。禁止用固定时长、固定 gap、均匀切分或纯聚类结果直接决定一局游戏内的回合边界。
 
 ```bash
-uv run python scripts/split_raw_videos.py --overwrite
+uv run python tools/build/split_raw_videos.py --overwrite
 ```
 
 审查窗口参数：
@@ -93,7 +93,7 @@ uv run python scripts/split_raw_videos.py --overwrite
 只检查命令、不写文件：
 
 ```bash
-uv run python scripts/split_raw_videos.py --dry-run
+uv run python tools/build/split_raw_videos.py --dry-run
 ```
 
 ## 3. Slurm 提交 Qwen3-Omni 初标
@@ -111,7 +111,7 @@ sbatch \
   --nodelist=gpu8 \
   --gpus-per-node=2 \
   --export=ALL,LIMIT=3,GAME_ID=g001,RESUME=1 \
-  slurm/qwen3_annotation_pipeline.slurm
+  configs/slurm/qwen3_annotation_pipeline.slurm
 ```
 
 跑完整任务：
@@ -121,7 +121,7 @@ sbatch \
   --nodelist=gpu8 \
   --gpus-per-node=2 \
   --export=ALL,RESUME=1 \
-  slurm/qwen3_annotation_pipeline.slurm
+  configs/slurm/qwen3_annotation_pipeline.slurm
 ```
 
 常用变量：
@@ -149,7 +149,7 @@ Slurm 作业会在同一个任务内启动本地 Qwen3-Omni HTTP 服务，等待
 如果已经手工启动了 Qwen3-Omni 服务：
 
 ```bash
-uv run python scripts/run_qwen_annotation.py \
+uv run python tools/annotation/run_qwen_annotation.py \
   --backend local \
   --server-url http://127.0.0.1:5090 \
   --game-id g001 \
@@ -160,16 +160,16 @@ uv run python scripts/run_qwen_annotation.py \
 不调用模型的 mock 测试：
 
 ```bash
-uv run python scripts/run_qwen_annotation.py --backend mock --limit 3
+uv run python tools/annotation/run_qwen_annotation.py --backend mock --limit 3
 ```
 
 ## 5. 后处理
 
 ```bash
-uv run python scripts/build_meeting_utterances.py
-uv run python scripts/build_information_states.py
-uv run python scripts/merge_global_events.py
-uv run python scripts/build_candidate_trials.py
+uv run python tools/build/build_meeting_utterances.py
+uv run python tools/build/build_information_states.py
+uv run python tools/build/merge_global_events.py
+uv run python tools/build/build_candidate_trials.py
 ```
 
 这些脚本生成的是初步结构化结果，后续可再替换为 Qwen 辅助融合版本。

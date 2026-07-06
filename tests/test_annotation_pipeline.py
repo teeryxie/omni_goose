@@ -23,7 +23,7 @@ from socialomni_annotation.sync import (
     infer_sync_offsets,
     normalize_sync_payload,
 )
-from scripts.mark_game_starts import build_offsets
+from tools.build.mark_game_starts import build_offsets
 from socialomni_annotation.postprocess import build_candidate_trials
 
 

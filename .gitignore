@@ -37,7 +37,10 @@ config/.env.*
 /annotations_qwen/
 /goose_data/
 /runs/
-/benchmark/
+# Generated benchmark workspaces. The official benchmark/social_omni_goose_v1 is tracked.
+/benchmark/*
+!/benchmark/social_omni_goose_v1/
+!/benchmark/social_omni_goose_v1/**
 /results/*
 !/results/.gitkeep
 
@@ -50,10 +53,6 @@ config/.env.*
 /append/
 run_benchmark_level3.py
 command.md
-
-# Tools
-/tools/
-/tools/*
 
 # Spec workflow
 /.spec-workflow/
@@ -74,8 +73,8 @@ htmlcov/
 .ipynb_checkpoints/
 
 # Slurm runtime logs
-/slurm/logs/*
-!/slurm/logs/.gitkeep
+/configs/slurm/logs/*
+!/configs/slurm/logs/.gitkeep
 
 # LaTeX build artifacts
 *.aux

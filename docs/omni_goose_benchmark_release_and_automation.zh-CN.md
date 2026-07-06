@@ -102,7 +102,7 @@ annotations_qwen/candidate_trials/
 ```text
 annotations_qwen/errors/
 raw model responses
-slurm/logs/
+configs/slurm/logs/
 runs/*/job_manifests/
 ```
 
@@ -113,13 +113,13 @@ runs/*/job_manifests/
 新增脚本：
 
 ```text
-scripts/package_omni_goose_benchmark_release.py
+tools/package/package_omni_goose_benchmark_release.py
 ```
 
 生成 minimal release：
 
 ```bash
-.venv/bin/python scripts/package_omni_goose_benchmark_release.py \
+.venv/bin/python tools/package/package_omni_goose_benchmark_release.py \
   --dataset-root data/omni_goose \
   --run-root runs/omni_goose_oracle_pass1 \
   --output-dir runs/omni_goose_oracle_pass1/release_minimal_v1 \
@@ -130,7 +130,7 @@ scripts/package_omni_goose_benchmark_release.py
 生成包含视频的 release：
 
 ```bash
-.venv/bin/python scripts/package_omni_goose_benchmark_release.py \
+.venv/bin/python tools/package/package_omni_goose_benchmark_release.py \
   --dataset-root data/omni_goose \
   --run-root runs/omni_goose_oracle_pass1 \
   --output-dir runs/omni_goose_oracle_pass1/release_video_v1 \
@@ -142,7 +142,7 @@ scripts/package_omni_goose_benchmark_release.py
 生成包含结构化中间标注的 release：
 
 ```bash
-.venv/bin/python scripts/package_omni_goose_benchmark_release.py \
+.venv/bin/python tools/package/package_omni_goose_benchmark_release.py \
   --dataset-root data/omni_goose \
   --run-root runs/omni_goose_oracle_pass1 \
   --output-dir runs/omni_goose_oracle_pass1/release_full_annotation_v1 \
@@ -168,13 +168,13 @@ completion_validation.json 里的 complete 必须为 true。
 发布前建议固定执行：
 
 ```bash
-.venv/bin/python scripts/validate_omni_goose_completion.py \
+.venv/bin/python tools/validate/validate_omni_goose_completion.py \
   --dataset-root data/omni_goose \
   --annotation-root runs/omni_goose_oracle_pass1/annotations_qwen \
   --benchmark-root runs/omni_goose_oracle_pass1/benchmark \
   --output runs/omni_goose_oracle_pass1/completion_validation.json
 
-.venv/bin/python scripts/report_benchmark_quality.py \
+.venv/bin/python tools/report/report_benchmark_quality.py \
   --dataset-root data/omni_goose \
   --benchmark-root runs/omni_goose_oracle_pass1/benchmark
 ```
@@ -221,8 +221,8 @@ xiaolu
 如果下一批玩家不同，需要把玩家列表参数化，至少涉及：
 
 ```text
-socialomni_annotation/omni_goose/schema.py
-scripts/submit_omni_goose_oracle_jobs.py
+src/socialomni_goose/schema.py
+tools/annotation/submit_omni_goose_oracle_jobs.py
 各阶段 prompt 和 validation
 ```
 
@@ -246,22 +246,22 @@ scripts/submit_omni_goose_oracle_jobs.py
 已经有的脚本：
 
 ```text
-scripts/export_omni_goose_aligned_videos.py
-scripts/submit_omni_goose_oracle_jobs.py
-scripts/recover_omni_goose_error_outputs.py
-scripts/report_omni_goose_progress.py
-scripts/export_tom_benchmark.py
-scripts/report_benchmark_quality.py
-scripts/validate_omni_goose_completion.py
-scripts/package_omni_goose_benchmark_release.py
+tools/package/export_omni_goose_aligned_videos.py
+tools/annotation/submit_omni_goose_oracle_jobs.py
+tools/annotation/recover_omni_goose_error_outputs.py
+tools/annotation/report_omni_goose_progress.py
+tools/package/export_tom_benchmark.py
+tools/report/report_benchmark_quality.py
+tools/validate/validate_omni_goose_completion.py
+tools/package/package_omni_goose_benchmark_release.py
 ```
 
 Slurm 自动化脚本：
 
 ```text
-slurm/omni_goose_promote_export_monitor.slurm
-slurm/qwen3_omni_oracle_2gpu_stage.slurm
-slurm/qwen3_omni_oracle_4x2_local.slurm
+configs/slurm/omni_goose_promote_export_monitor.slurm
+configs/slurm/qwen3_omni_oracle_2gpu_stage.slurm
+configs/slurm/qwen3_omni_oracle_4x2_local.slurm
 ```
 
 ### 建议的新数据复跑命令骨架
@@ -269,7 +269,7 @@ slurm/qwen3_omni_oracle_4x2_local.slurm
 1. 生成 aligned dataset：
 
 ```bash
-.venv/bin/python scripts/export_omni_goose_aligned_videos.py \
+.venv/bin/python tools/package/export_omni_goose_aligned_videos.py \
   --manifest-path data/processed/<new_clip_manifest>.jsonl \
   --sync-offsets data/processed/<new_sync_offsets>.json \
   --round-boundaries-dir annotations_qwen/<new_round_boundaries> \
@@ -284,13 +284,13 @@ slurm/qwen3_omni_oracle_4x2_local.slurm
 ```bash
 sbatch \
   --export=ALL,DATASET_ROOT=data/<new_dataset_name>,ANNOTATION_ROOT=runs/<new_run_name>/annotations_qwen,MAX_TOTAL_JOBS=60,MAX_PENDING_JOBS=55 \
-  slurm/omni_goose_promote_export_monitor.slurm
+  configs/slurm/omni_goose_promote_export_monitor.slurm
 ```
 
 3. 中途查看进度：
 
 ```bash
-.venv/bin/python scripts/report_omni_goose_progress.py \
+.venv/bin/python tools/annotation/report_omni_goose_progress.py \
   --dataset-root data/<new_dataset_name> \
   --annotation-root runs/<new_run_name>/annotations_qwen \
   --benchmark-root runs/<new_run_name>/benchmark \
@@ -300,16 +300,16 @@ sbatch \
 4. 最终导出和验证：
 
 ```bash
-.venv/bin/python scripts/export_tom_benchmark.py \
+.venv/bin/python tools/package/export_tom_benchmark.py \
   --dataset-root data/<new_dataset_name> \
   --annotation-root runs/<new_run_name>/annotations_qwen \
   --benchmark-root runs/<new_run_name>/benchmark
 
-.venv/bin/python scripts/report_benchmark_quality.py \
+.venv/bin/python tools/report/report_benchmark_quality.py \
   --dataset-root data/<new_dataset_name> \
   --benchmark-root runs/<new_run_name>/benchmark
 
-.venv/bin/python scripts/validate_omni_goose_completion.py \
+.venv/bin/python tools/validate/validate_omni_goose_completion.py \
   --dataset-root data/<new_dataset_name> \
   --annotation-root runs/<new_run_name>/annotations_qwen \
   --benchmark-root runs/<new_run_name>/benchmark \
@@ -319,7 +319,7 @@ sbatch \
 5. 打包 release：
 
 ```bash
-.venv/bin/python scripts/package_omni_goose_benchmark_release.py \
+.venv/bin/python tools/package/package_omni_goose_benchmark_release.py \
   --dataset-root data/<new_dataset_name> \
   --run-root runs/<new_run_name> \
   --output-dir runs/<new_run_name>/release_minimal_v1 \

@@ -6,10 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from socialomni_annotation.omni_goose.checkers import run_perspective_leakage_checker
-from socialomni_annotation.omni_goose.backends import MockBackend
-from socialomni_annotation.omni_goose.io import load_segments_jsonl, resolve_video_path
-from socialomni_annotation.omni_goose.pipeline import (
+from socialomni_goose.checkers import run_perspective_leakage_checker
+from socialomni_goose.backends import MockBackend
+from socialomni_goose.io import load_segments_jsonl, resolve_video_path
+from socialomni_goose.pipeline import (
     abs_time,
     normalize_candidate_trial_payload,
     normalize_cutoff_payload,
@@ -18,7 +18,7 @@ from socialomni_annotation.omni_goose.pipeline import (
     parse_partial_json_array_objects,
     save_error,
 )
-from socialomni_annotation.omni_goose.schema import CandidateTrial, GlobalEvent, MemoryState, POVEvent, Segment, Utterance
+from socialomni_goose.schema import CandidateTrial, GlobalEvent, MemoryState, POVEvent, Segment, Utterance
 
 
 def _segment_row() -> dict:
@@ -115,7 +115,7 @@ def test_error_output_can_be_saved(tmp_path: Path) -> None:
 def test_resume_mode_does_not_reannotate(tmp_path: Path) -> None:
     segments = _write_segments_jsonl(tmp_path)
     output_root = tmp_path / "annotations_qwen"
-    script = Path(__file__).resolve().parents[1] / "scripts" / "run_pov_event_annotation.py"
+    script = Path(__file__).resolve().parents[1] / "tools" / "annotation" / "run_pov_event_annotation.py"
     base_cmd = [
         ".venv/bin/python",
         str(script),
@@ -261,7 +261,7 @@ def test_benchmark_export_and_scoring(tmp_path: Path) -> None:
     subprocess.run(
         [
             ".venv/bin/python",
-            "scripts/export_tom_benchmark.py",
+            "tools/package/export_tom_benchmark.py",
             "--dataset-root",
             "data/omni_goose",
             "--annotation-root",
@@ -277,7 +277,7 @@ def test_benchmark_export_and_scoring(tmp_path: Path) -> None:
     subprocess.run(
         [
             ".venv/bin/python",
-            "scripts/run_tom_eval.py",
+            "tools/eval/run_tom_eval.py",
             "--trials",
             str(bench / "weak" / "trials.jsonl"),
             "--output",
@@ -291,7 +291,7 @@ def test_benchmark_export_and_scoring(tmp_path: Path) -> None:
     subprocess.run(
         [
             ".venv/bin/python",
-            "scripts/score_tom_eval.py",
+            "tools/eval/score_tom_eval.py",
             "--trials",
             str(bench / "weak" / "trials.jsonl"),
             "--predictions",

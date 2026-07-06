@@ -1,8 +1,8 @@
 # SocialOmni-Goose
 
-SocialOmni-Goose is a trajectory-derived Theory-of-Mind benchmark built from a six-POV aligned Goose Goose Duck replay. The benchmark turns a fixed multiplayer social-game trajectory into grouped diagnostic probes that test whether an omni model can distinguish oracle truth from the limited perspective of each player.
+SocialOmni-Goose is a trajectory-derived Theory-of-Mind benchmark built from a six-POV aligned Goose Goose Duck replay. It evaluates whether an omni model can separate oracle truth from each player perspective, reconstruct pre-reveal false beliefs, and predict strategic communication effects.
 
-The core benchmark question is:
+## Benchmark Question
 
 ```text
 Given a real multi-agent social-game trajectory, can a model distinguish:
@@ -16,9 +16,55 @@ Given a real multi-agent social-game trajectory, can a model distinguish:
 8. how one player should expect another player to interpret a strategic utterance.
 ```
 
-## Benchmark Design
+## Project Layout
 
-SocialOmni-Goose follows the Decrypto-style diagnostic-generation principle:
+```text
+benchmark/social_omni_goose_v1/   Official benchmark data and scorer-private gold
+src/socialomni_goose/             Decrypto-style ToM schemas, builders, validators, scorers
+src/socialomni_annotation/        Legacy aligned-video annotation utilities used by the build chain
+tools/                            Build, annotation, evaluation, packaging, and validation CLIs
+configs/slurm/                    HPC job templates and runtime examples
+integrations/models/              Local model server and client integrations
+docs/                             Benchmark design and annotation documentation
+tests/                            Unit and release validation tests
+```
+
+The repository root is intentionally small. Generated annotations, local runs, raw videos, and model responses stay outside Git.
+
+## Benchmark Data
+
+Current benchmark version:
+
+```text
+benchmark/social_omni_goose_v1/
+```
+
+Important files:
+
+| file | content |
+|---|---|
+| `public/leaderboard_core/trials.jsonl` | Structured leaderboard core, 889 public trials. |
+| `public/leaderboard_core/interactive_prompts.jsonl` | A/B/C/D public prompts for interactive diagnostics. |
+| `public/leaderboard_core/probe_groups_public.jsonl` | Public probe-group metadata with internal review fields removed. |
+| `public/raw_video_smoke/raw_video_smoke.jsonl` | 48 raw-video smoke trials. |
+| `private/leaderboard_core/gold.jsonl` | Scoring metadata. |
+| `private/leaderboard_core/hidden_gold.jsonl` | Scorer-only answers. Never put this file into model prompts. |
+| `tables/README.md` | Human-readable metric and stratified tables. |
+| `manifest.json` | File list, SHA-256 hashes, line counts, and public-file leak scan. |
+
+Core counts:
+
+```text
+leaderboard_core trials          889
+leaderboard_core hidden gold     889
+raw-video smoke trials            48
+public probe groups              276
+public_file_leak_hits             []
+```
+
+## Diagnostic Design
+
+SocialOmni-Goose follows a Decrypto-style diagnostic-generation pipeline:
 
 ```text
 6-POV aligned replay trajectory
@@ -29,26 +75,24 @@ SocialOmni-Goose follows the Decrypto-style diagnostic-generation principle:
 -> controlled scoring
 ```
 
-The storage unit is an aligned segment or phase video, but the benchmark unit is a trajectory node:
+The storage unit is an aligned video segment or phase clip. The benchmark unit is a trajectory node:
 
 ```text
 cutoff_abs_sec + target_player + query_variable + probe_type
 ```
 
-Each probe group is generated around an information gap, a private observation, a verifiable claim, a delayed public reveal, or a strategic communication event.
+Probe groups are generated around information gaps, private observations, verifiable claims, delayed public reveals, and strategic communication events.
 
 ## Probe Types
 
 | probe type | purpose |
 |---|---|
 | `A_pre_reveal_belief` | Ask what the target player can believe before truth reveal, using only target-available evidence. |
-| `B_post_reveal_reconstruct_previous_belief` | Reveal oracle truth, then ask the model to reconstruct the earlier belief of the target player without hindsight leakage. |
-| `C_other_agent_false_belief` | Ask what another player would believe before reveal, given the limited information available to that player. |
+| `B_post_reveal_reconstruct_previous_belief` | Reveal oracle truth, then ask the model to reconstruct the target player earlier belief without hindsight leakage. |
+| `C_other_agent_false_belief` | Ask what another player would believe before reveal, given that player limited information. |
 | `D_perspective_taking_prediction` | Ask how a speaker should expect a listener to interpret a strategic claim or accusation. |
 
 ## Metrics
-
-Main metrics include:
 
 | metric | meaning |
 |---|---|
@@ -63,7 +107,7 @@ Main metrics include:
 | `evidence_support_rate` | Whether cited evidence is compatible with the allowed input condition. |
 | `json_parse_success` / `schema_validation_success` | Output reliability and schema compliance. |
 
-The aggregate score is:
+Aggregate score:
 
 ```text
 SoG-ToM-Core =
@@ -76,93 +120,51 @@ SoG-ToM-Core =
 + 0.05 * (1 - death_skill_overclaim_rate)
 ```
 
-## Clean Benchmark Release
-
-The current clean benchmark package is:
+## Evaluation Tools
 
 ```text
-release/social_omni_goose_clean_benchmark_pass248/
+tools/build/prepare_social_omni_goose_qwen_eval_workspace.py
+tools/eval/run_social_omni_goose_qwen_eval.py
+tools/eval/score_social_omni_goose_qwen_eval.py
+configs/slurm/qwen3_omni_social_omni_eval.slurm
 ```
 
-Layout:
+Use `PYTHONPATH=src:.` when running tools directly from a checkout:
 
-```text
-public/                 # model-facing benchmark inputs, no scorer-private answers
-scorer_private/         # gold and scorer-private answer files for local scoring only
-tables/                 # Markdown and CSV summary tables
-manifests/              # file list, hashes, and public-file leak scan
+```bash
+PYTHONPATH=src:. .venv/bin/python tools/eval/run_social_omni_goose_qwen_eval.py --help
+PYTHONPATH=src:. .venv/bin/python tools/eval/score_social_omni_goose_qwen_eval.py --help
 ```
 
-Important files:
-
-| file | content |
-|---|---|
-| `public/leaderboard_core/trials.jsonl` | Structured leaderboard core, 889 public trials. |
-| `public/leaderboard_core/probe_groups_public.jsonl` | Public probe-group metadata with internal review fields removed. |
-| `public/raw_video_smoke/raw_video_smoke.jsonl` | 48 public raw-video smoke trials. |
-| `scorer_private/leaderboard_core/gold.jsonl` | Public gold metadata for scoring. |
-| `scorer_private/leaderboard_core/hidden_gold.jsonl` | Scorer-only hidden answers. Do not place into model prompts. |
-| `tables/README.md` | Main score table and stratified result tables. |
-| `manifests/clean_benchmark_manifest.json` | File sizes, SHA-256 hashes, and public-file leak scan. |
-
-Current package checks:
-
-```text
-public_file_leak_hits = []
-nonprivate_internal_name_hits = []
-leaderboard_core trials = 889
-raw-video smoke trials = 48
-```
-
-## Evaluation Runner
-
-The evaluation workspace and outputs are local-only and ignored by Git. The reusable runner scripts are tracked:
-
-```text
-scripts/prepare_social_omni_goose_qwen_eval_workspace.py
-scripts/run_social_omni_goose_qwen_eval.py
-scripts/score_social_omni_goose_qwen_eval.py
-slurm/qwen3_omni_social_omni_eval.slurm
-```
-
-Quality-first Qwen3-Omni defaults used by the Slurm runner:
-
-```text
-QWEN3_OMNI_MAX_TOKENS=16384
-QWEN3_OMNI_TEXT_MERGE_MAX_TOKENS=32768
-QWEN3_OMNI_VIDEO_FPS=1.0
-QWEN3_OMNI_VIDEO_MAX_FRAMES=128
-QWEN3_OMNI_VIDEO_MAX_PIXELS=401408
-OMNI_HTTP_TIMEOUT_SEC=1200
-```
+The Qwen3-Omni Slurm runner uses quality-first defaults, including `QWEN3_OMNI_MAX_TOKENS=16384`, `QWEN3_OMNI_TEXT_MERGE_MAX_TOKENS=32768`, `QWEN3_OMNI_VIDEO_FPS=1.0`, `QWEN3_OMNI_VIDEO_MAX_FRAMES=128`, and `OMNI_HTTP_TIMEOUT_SEC=1200`.
 
 ## Local-Only Artifacts
 
-The following are intentionally ignored and should not be pushed:
+The following paths are intentionally ignored and should not be pushed:
 
 ```text
 runs/
 annotations_qwen/
-benchmark/
 goose_data/
 results/*
 tmp_pass*.py
 work/
 .codex_tmp_sync/
+benchmark/* except benchmark/social_omni_goose_v1/
 ```
 
-Model responses and raw run scores are not part of the clean benchmark package. A local result summary may exist under the ignored evaluation workspace as `LOCAL_RESULTS.md`.
+Model responses and raw run scores are not part of the clean benchmark. Local evaluation summaries may exist under ignored workspaces such as `runs/social_omni_goose_eval_qwen3omni_pass001/LOCAL_RESULTS.md`.
 
 ## Validation
 
 Recommended pre-push checks:
 
 ```bash
-python -m py_compile scripts/*.py socialomni_annotation/**/*.py models/utils/omni_http_client.py
-bash -n slurm/*.slurm
-python -m pytest tests/test_decrypto_diagnostics.py tests/test_leaderboard_core_validation.py
+PYTHONPATH=src:. .venv/bin/python -m py_compile $(git ls-files "*.py")
+bash -n configs/slurm/*.slurm configs/slurm/*.sh
+PYTHONPATH=src:. .venv/bin/python -m pytest tests/test_decrypto_diagnostics.py tests/test_leaderboard_core_validation.py
 ```
 
 ## Citation
 
-This repository is being reorganized as the SocialOmni-Goose benchmark foundation. Add the paper citation here once the benchmark paper metadata is finalized.
+This repository is being organized as the SocialOmni-Goose benchmark foundation. Add the paper citation here once the benchmark paper metadata is finalized.

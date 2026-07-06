@@ -1,7 +1,7 @@
 [project]
-name = "socialomni-benchmark"
+name = "socialomni-goose"
 version = "0.1.0"
-description = "A benchmark framework for evaluating native joint reasoning in omni-modal models"
+description = "Trajectory-derived Theory-of-Mind benchmark for six-POV social-game replay"
 readme = "README.md"
 requires-python =  ">=3.10,<3.11"
 dependencies = [
@@ -91,3 +91,6 @@ disallow_untyped_defs = true
 dev = [
     "pytest",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]
