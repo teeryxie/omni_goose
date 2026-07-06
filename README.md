@@ -1,295 +1,168 @@
-<p align="center">
-  <img src="docs/assets/socialomni_logo.png" alt="SocialOmni Logo" width="320" />
-</p>
+# SocialOmni-Goose
 
-<h2 align="center">SocialOmni: Benchmarking Audio-Visual Social Interactivity in Omni Models</h2>
-<h5 align="center">A benchmark for evaluating <i>who</i>, <i>when</i>, and <i>how</i> in omni-modal dialogue interaction.</h5>
+SocialOmni-Goose is a trajectory-derived Theory-of-Mind benchmark built from a six-POV aligned Goose Goose Duck replay. The benchmark turns a fixed multiplayer social-game trajectory into grouped diagnostic probes that test whether an omni model can distinguish oracle truth from the limited perspective of each player.
 
-<p align="center">
-  <a href="https://arxiv.org/abs/2603.16859"><img src="https://img.shields.io/badge/arXiv-2603.16859-b31b1b.svg?logo=arxiv" alt="arXiv"></a>
-  <a href="https://huggingface.co/papers/2603.16859"><img src="https://img.shields.io/badge/🤗-Paper%20In%20HF-red.svg" alt="HF Paper"></a>
-  <a href="https://github.com/Alexisxty/SocialOmni"><img src="https://img.shields.io/badge/GitHub-SocialOmni-black?logo=github" alt="GitHub"></a>
-  <a href="https://huggingface.co/datasets/alexisty/SocialOmni"><img src="https://img.shields.io/badge/🤗%20Dataset-SocialOmni-orange" alt="Dataset"></a>
-  <img src="https://img.shields.io/badge/Python-3.10-blue" alt="Python 3.10">
-  <img src="https://img.shields.io/badge/Tasks-Who%20%7C%20When%20%7C%20How-6f42c1" alt="Tasks">
-  <img src="https://img.shields.io/badge/Samples-2%2C209-0a7ea4" alt="Samples">
-</p>
-
-<p align="center">
-  <a href="#-highlights">Highlights</a> ·
-  <a href="#-benchmark-overview">Benchmark Overview</a> ·
-  <a href="#-quick-start">Quick Start</a> ·
-  <a href="#-main-results">Main Results</a> ·
-  <a href="#-citation">Citation</a>
-</p>
-
-SocialOmni is a benchmark for **audio-visual social interactivity** in omni-modal large language models (OLMs). Instead of reducing evaluation to static answer correctness, SocialOmni measures whether a model can behave appropriately in real dialogue by jointly evaluating three tightly coupled dimensions:
-
-- **Who** is speaking: speaker separation and identification
-- **When** to enter: interruption timing control
-- **How** to respond: natural interruption generation
-
-The repository contains the benchmark pipeline, model clients and servers, runtime configurations, and reproducible evaluation entrypoints for both perception and interaction-generation settings.
-
-## 😮 Highlights
-
-### 1. Beyond Static QA: A Benchmark for Social Interaction
-Existing benchmarks are trapped in "answer-centric" metrics. SocialOmni shifts the focus to socially appropriate behavior in multi-party dialogues, where a "correct" answer is still a failure if the timing is unnatural.
-
-### 2. The "Who-When-How" Protocol
-We operationalize conversational interactivity into a unified joint profile:
-
-Who: Active speaker identification.
-
-When: Socially appropriate interruption timing.
-
-How: Contextually coherent response generation.
-
-### 3. Joint Diagnostics: Decoding the Interaction Gap
-SocialOmni provides a high-fidelity map of failure by deconstructing the friction between three critical axes:
-
-- Perceptual Resilience: Robustness across audio-visual (in)consistency.
-
-- Timing Precision: Millisecond-level accuracy within "social windows."
-
-- Generative Quality: AI-judged naturalness and coherence of interruptions.
-
-> The Core Insight: By decoupling these dimensions, we pinpoint exactly where strong perception fails to translate into fluid social interaction.
-
-
-## 🧩 Tasks
-
-### Task I: Perception (`who`)
-
-Given a video clip and a timestamp `t`, the model answers:
-
-> At timestamp `t`, who is speaking?
-
-The model chooses from `{A, B, C, D}`.
-
-### Task II: Interaction Generation (`when` + `how`)
-
-Given a video prefix `V[0:t]` and a candidate speaker `X`, the model performs two sub-questions:
-
-- **Q1 (`when`)**: should `X` interrupt immediately after `t`?
-- **Q2 (`how`)**: if yes, what is the natural interruption content?
-
-## 📏 Evaluation Protocol
-
-### Perception metrics
-
-- Top-1 Accuracy
-- Consistent / inconsistent split accuracy
-- Gap:
+The core benchmark question is:
 
 ```text
-Δ = Acc_consistent - Acc_inconsistent
+Given a real multi-agent social-game trajectory, can a model distinguish:
+1. what globally happened;
+2. what a specific player saw or heard at a cutoff;
+3. what that player did not see, but another player did;
+4. whether a heard claim conflicts with oracle events;
+5. whether the target player can know that conflict;
+6. what false or incomplete belief existed before reveal;
+7. whether the model can reconstruct that prior belief after truth is revealed;
+8. how one player should expect another player to interpret a strategic utterance.
 ```
 
-### Generation metrics
+## Benchmark Design
 
-- **Q1**: Accuracy / Precision / Recall / F1 under tolerance windows such as `δ = 0.2s`
-- **Q2**: LLM-judge score on `{0, 25, 50, 75, 100}`
-
-The paper protocol uses three judges for Q2:
-
-- GPT-4o
-- Gemini 3 Pro
-- Qwen3-Omni
-
-## 🐳 Main Results
-
-### SocialOmni reveals cross-axis decoupling
-
-Perception strength does not guarantee interaction quality. Some models identify speakers well but perform poorly on natural interruption generation, while others generate plausible responses despite weak speaker grounding.
-
-| Model | Who (%) | When Acc. (%) | How (/100) |
-|---|---:|---:|---:|
-| GPT-4o | 36.75 | 46.89 | 69.64 |
-| Gemini 2.5 Pro | 44.69 | 55.67 | 72.32 |
-| Gemini 2.5 Flash | 47.03 | 61.50 | **85.08** |
-| Gemini 3 Flash Preview | 53.23 | 61.06 | 79.08 |
-| Gemini 3 Pro Preview | 64.99 | **67.31** | 81.77 |
-| Qwen3-Omni | **69.25** | 63.64 | 45.57 |
-
-Key observation:
-
-- **Who leader**: Qwen3-Omni
-- **When leader**: Gemini 3 Pro Preview
-- **How leader**: Gemini 2.5 Flash
-
-This rank inversion is why SocialOmni evaluates the full interaction profile instead of a single aggregate score.
-
-## ⚙️ Requirements and Installation
-
-We recommend the following environment:
-
-- Python `>=3.10,<3.11`
-- CUDA-compatible PyTorch runtime for local omni models
-- `uv` for dependency and environment management
-
-Install with:
-
-```bash
-git clone https://github.com/Alexisxty/SocialOmni.git
-cd SocialOmni
-uv sync
-```
-
-## 🚀 Quick Start
-
-### 1. Configure runtime and paths
-
-Recommended setup:
-
-- Put the single OpenAI-compatible API credential pair in `.env`
-- Put non-sensitive defaults such as local model paths, `server_url`, dataset paths,
-  output directories, and log directories in `config/config.yaml`
-
-Start from the provided template:
-
-```bash
-cp .env.example .env
-```
-
-Then edit `.env` and set the API credential pair:
-
-```bash
-OPENAI_API_KEY=...
-OPENAI_API_BASE=...
-```
-
-Then edit `config/config.yaml` and set:
-
-- local model path or `server_url`
-- dataset path
-- output and result directories
-
-Notes:
-
-- All hosted API models in this repo, including Gemini model keys, use the same
-  OpenAI-compatible `OPENAI_API_KEY` and `OPENAI_API_BASE` configuration.
-- API credentials should live in `.env`, not in `config/config.yaml`.
-- API models do not require local weights.
-- Local omni models require a valid `model_path` and usually a local `server_url`.
-- If you leave `benchmark.level1.dataset_path`, `benchmark.level1.video_dir`,
-  `benchmark.level2.dataset_path`, and `benchmark.level2.video_dir` empty, the
-  benchmark uses the default `data/` layout shown below.
-
-Dataset source:
-
-- Hugging Face dataset: `alexisty/SocialOmni`
-- Default local target directory: `data/`
-
-If you keep the default benchmark paths, the runner will auto-download missing
-benchmark data into `data/level_1` or `data/level_2` on first use.
-To disable this behavior, set:
-
-```bash
-export SOCIALOMNI_AUTO_DOWNLOAD_DATASET=0
-```
-
-You can also download the benchmark data manually:
-
-```bash
-uv run python scripts/download_dataset.py --level all
-```
-
-Default expected layout:
+SocialOmni-Goose follows the Decrypto-style diagnostic-generation principle:
 
 ```text
-data/
-├── level_1/
-│   ├── dataset.json
-│   └── videos/
-└── level_2/
-    ├── annotations.json
-    └── videos/
+6-POV aligned replay trajectory
+-> oracle trajectory ledger
+-> visibility / belief / memory projection
+-> grouped A/B/C/D ToM probes
+-> leaderboard trials
+-> controlled scoring
 ```
 
-Common environment variables:
-
-- `OPENAI_API_KEY`
-- `OPENAI_API_BASE`
-- `SOCIALOMNI_AUTO_DOWNLOAD_DATASET`
-
-### 2. Start a local model server
-
-Example:
-
-```bash
-uv run models/model_server/qwen3_omni/qwen3_omni_server.py
-```
-
-Other model server entrypoints are located under:
+The storage unit is an aligned segment or phase video, but the benchmark unit is a trajectory node:
 
 ```text
-models/model_server/*/*_server.py
+cutoff_abs_sec + target_player + query_variable + probe_type
 ```
 
-### 3. Run Task I benchmark
+Each probe group is generated around an information gap, a private observation, a verifiable claim, a delayed public reveal, or a strategic communication event.
 
-```bash
-uv run run_benchmark.py --model qwen3_omni
-```
+## Probe Types
 
-### 4. Run Task II benchmark
+| probe type | purpose |
+|---|---|
+| `A_pre_reveal_belief` | Ask what the target player can believe before truth reveal, using only target-available evidence. |
+| `B_post_reveal_reconstruct_previous_belief` | Reveal oracle truth, then ask the model to reconstruct the earlier belief of the target player without hindsight leakage. |
+| `C_other_agent_false_belief` | Ask what another player would believe before reveal, given the limited information available to that player. |
+| `D_perspective_taking_prediction` | Ask how a speaker should expect a listener to interpret a strategic claim or accusation. |
 
-```bash
-uv run run_benchmark_level2.py --model qwen3_omni --resume
-```
+## Metrics
 
-## 🧱 Repository Structure
+Main metrics include:
+
+| metric | meaning |
+|---|---|
+| `RC_weak` / `RC_strong` | Representational-change consistency after reveal. |
+| `FB_weak` / `FB_strong` | False-belief recognition and reconstruction. |
+| `PT_weak` / `PT_strong` | Perspective-taking and strategic-communication prediction. |
+| `claim_verification_global` | Whether a claim is globally supported, contradicted, or unresolved. |
+| `claim_verification_local` | Whether the target player can know the truth status of the claim. |
+| `perspective_leakage_rate` | Whether a response cites information unavailable to the simulated player. |
+| `forbidden_evidence_usage_rate` | Whether hidden scorer-only evidence is used in the answer. |
+| `death_skill_overclaim_rate` | Whether visible death/body/blood evidence is overclaimed as killer, role, alignment, skill, or mechanism. |
+| `evidence_support_rate` | Whether cited evidence is compatible with the allowed input condition. |
+| `json_parse_success` / `schema_validation_success` | Output reliability and schema compliance. |
+
+The aggregate score is:
 
 ```text
-SocialOmni/
-├── config/                  # runtime, model, and evaluation configs
-├── data/                    # local datasets (not tracked)
-├── docs/                    # docs and visual assets
-├── models/                  # model servers, clients, and shared benchmark logic
-├── scripts/                 # utility scripts
-├── run_benchmark.py         # Task I entrypoint
-├── run_benchmark_level2.py  # Task II entrypoint
-├── pyproject.toml           # dependency definition
-└── README.md
+SoG-ToM-Core =
+  0.20 * RC_strong
++ 0.20 * FB_strong
++ 0.20 * PT_strong
++ 0.15 * claim_verification_local
++ 0.10 * evidence_support_rate
++ 0.10 * (1 - perspective_leakage_rate)
++ 0.05 * (1 - death_skill_overclaim_rate)
 ```
 
-## 🔑 Supported Model Keys
+## Clean Benchmark Release
 
-Use the following keys with `--model`:
+The current clean benchmark package is:
 
 ```text
-gpt4o
-gemini_2_5_flash
-gemini_2_5_pro
-gemini_3_flash_preview
-gemini_3_pro_preview
-qwen3_omni
-qwen3_omni_thinking
-qwen2_5_omni
-miniomni_2
-omnivinci
-vita_1_5
-baichuan_omni_1_5
-ming
+release/social_omni_goose_clean_benchmark_pass248/
 ```
 
-## 🧪 Reproducibility Notes
+Layout:
 
-- Keep dataset and result directories local and out of version control.
-- Use fixed prompt templates and stable runtime configs for cross-model comparison.
-- Report split-wise metrics and confidence intervals when claiming improvements.
-- For generation evaluation, keep the judge set fixed across runs.
-
-## ✏️ Citation
-
-If you find SocialOmni useful in your research, please cite:
-
-```bibtex
-@article{xie2026socialomni,
-  title={SocialOmni: Benchmarking Audio-Visual Social Interactivity in Omni Models},
-  author={Tianyu Xie and Jinfa Huang and Yuexiao Ma and Rongfang Luo and Yan Yang and Wang Chen and Yuhui Zeng and Ruize Fang and Yixuan Zou and Xiawu Zheng and Jiebo Luo and Rongrong Ji},
-  journal={arXiv preprint arXiv:2603.16859},
-  year={2026}
-}
+```text
+public/                 # model-facing benchmark inputs, no scorer-private answers
+scorer_private/         # gold and scorer-private answer files for local scoring only
+tables/                 # Markdown and CSV summary tables
+manifests/              # file list, hashes, and public-file leak scan
 ```
+
+Important files:
+
+| file | content |
+|---|---|
+| `public/leaderboard_core/trials.jsonl` | Structured leaderboard core, 889 public trials. |
+| `public/leaderboard_core/probe_groups_public.jsonl` | Public probe-group metadata with internal review fields removed. |
+| `public/raw_video_smoke/raw_video_smoke.jsonl` | 48 public raw-video smoke trials. |
+| `scorer_private/leaderboard_core/gold.jsonl` | Public gold metadata for scoring. |
+| `scorer_private/leaderboard_core/hidden_gold.jsonl` | Scorer-only hidden answers. Do not place into model prompts. |
+| `tables/README.md` | Main score table and stratified result tables. |
+| `manifests/clean_benchmark_manifest.json` | File sizes, SHA-256 hashes, and public-file leak scan. |
+
+Current package checks:
+
+```text
+public_file_leak_hits = []
+nonprivate_internal_name_hits = []
+leaderboard_core trials = 889
+raw-video smoke trials = 48
+```
+
+## Evaluation Runner
+
+The evaluation workspace and outputs are local-only and ignored by Git. The reusable runner scripts are tracked:
+
+```text
+scripts/prepare_social_omni_goose_qwen_eval_workspace.py
+scripts/run_social_omni_goose_qwen_eval.py
+scripts/score_social_omni_goose_qwen_eval.py
+slurm/qwen3_omni_social_omni_eval.slurm
+```
+
+Quality-first Qwen3-Omni defaults used by the Slurm runner:
+
+```text
+QWEN3_OMNI_MAX_TOKENS=16384
+QWEN3_OMNI_TEXT_MERGE_MAX_TOKENS=32768
+QWEN3_OMNI_VIDEO_FPS=1.0
+QWEN3_OMNI_VIDEO_MAX_FRAMES=128
+QWEN3_OMNI_VIDEO_MAX_PIXELS=401408
+OMNI_HTTP_TIMEOUT_SEC=1200
+```
+
+## Local-Only Artifacts
+
+The following are intentionally ignored and should not be pushed:
+
+```text
+runs/
+annotations_qwen/
+benchmark/
+goose_data/
+results/*
+tmp_pass*.py
+work/
+.codex_tmp_sync/
+```
+
+Model responses and raw run scores are not part of the clean benchmark package. A local result summary may exist under the ignored evaluation workspace as `LOCAL_RESULTS.md`.
+
+## Validation
+
+Recommended pre-push checks:
+
+```bash
+python -m py_compile scripts/*.py socialomni_annotation/**/*.py models/utils/omni_http_client.py
+bash -n slurm/*.slurm
+python -m pytest tests/test_decrypto_diagnostics.py tests/test_leaderboard_core_validation.py
+```
+
+## Citation
+
+This repository is being reorganized as the SocialOmni-Goose benchmark foundation. Add the paper citation here once the benchmark paper metadata is finalized.

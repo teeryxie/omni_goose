@@ -5,8 +5,8 @@ from typing import Any
 
 from .backends.qwen_omni import ModelBackend
 from .json_utils import parse_json, validation_error_payload, write_json
-from .prompts import pov_event_prompt
-from .schemas import Clip, POVEvent
+from .prompts import pov_event_prompt, round_boundary_prompt
+from .schemas import Clip, POVEvent, RoundBoundaryCandidate
 
 
 def _coerce_float(value: Any, fallback: float) -> float:
@@ -88,6 +88,50 @@ def normalize_pov_event_payload(item: dict, clip: Clip) -> dict:
     return normalized
 
 
+def normalize_round_boundary_payload(item: dict, clip: Clip) -> dict:
+    normalized = dict(item)
+    normalized["clip_id"] = clip.clip_id
+    normalized["game_id"] = clip.game_id
+    normalized["player_id"] = clip.player_id
+    normalized.setdefault("aligned_start_sec", clip.start_sec)
+    normalized.setdefault("aligned_end_sec", clip.end_sec)
+    normalized.setdefault("boundary_type", "uncertain_boundary")
+    normalized.setdefault("evidence", "")
+    normalized.setdefault("confidence", 0.0)
+    normalized.setdefault("source_povs", [clip.player_id])
+    normalized.setdefault("needs_review", False)
+
+    start_sec = _coerce_float(normalized.get("aligned_start_sec"), clip.start_sec)
+    end_sec = _coerce_float(normalized.get("aligned_end_sec"), clip.end_sec)
+    start_sec = min(max(start_sec, clip.start_sec), clip.end_sec)
+    end_sec = min(max(end_sec, clip.start_sec), clip.end_sec)
+    if end_sec <= start_sec:
+        if start_sec >= clip.end_sec:
+            start_sec = max(clip.start_sec, clip.end_sec - 1.0)
+        end_sec = min(clip.end_sec, start_sec + 1.0)
+        normalized["needs_review"] = True
+    normalized["aligned_start_sec"] = start_sec
+    normalized["aligned_end_sec"] = end_sec
+
+    if not normalized["source_povs"]:
+        normalized["source_povs"] = [clip.player_id]
+    if clip.player_id not in normalized["source_povs"]:
+        normalized["source_povs"].append(clip.player_id)
+
+    confidence = normalized.get("confidence", 0.0)
+    if isinstance(confidence, str):
+        confidence_map = {
+            "高": 0.9,
+            "中": 0.6,
+            "低": 0.3,
+            "high": 0.9,
+            "medium": 0.6,
+            "low": 0.3,
+        }
+        normalized["confidence"] = confidence_map.get(confidence.strip().lower(), 0.0)
+    return normalized
+
+
 def annotate_pov_events(
     clips: list[Clip],
     backend: ModelBackend,
@@ -115,6 +159,65 @@ def annotate_pov_events(
                 {
                     "clip": clip.model_dump(),
                     "events": [event.model_dump() for event in events],
+                    "raw_response": raw_response,
+                },
+            )
+            stats["ok"] += 1
+        except Exception as exc:  # noqa: BLE001
+            stats["error"] += 1
+            raw = locals().get("raw_response", "")
+            error_payload = validation_error_payload(exc, raw)
+            try:
+                write_json(
+                    error_dir / f"{clip.clip_id}.json",
+                    {
+                        "clip": clip.model_dump(),
+                        **error_payload,
+                    },
+                )
+            except TypeError:
+                write_json(
+                    error_dir / f"{clip.clip_id}.json",
+                    {
+                        "clip": clip.model_dump(),
+                        "error": str(error_payload.get("error", exc)),
+                        "raw_response": raw,
+                    },
+                )
+    return stats
+
+
+def annotate_round_boundaries(
+    clips: list[Clip],
+    backend: ModelBackend,
+    output_dir: Path,
+    error_dir: Path,
+    resume: bool,
+) -> dict[str, int]:
+    stats = {"ok": 0, "error": 0, "skipped": 0}
+    for clip in clips:
+        output_path = output_dir / f"{clip.clip_id}.json"
+        if resume and output_path.exists():
+            stats["skipped"] += 1
+            continue
+
+        prompt = round_boundary_prompt(clip)
+        try:
+            raw_response = backend.generate(prompt, clip.clip_path)
+            payload = parse_json(raw_response)
+            boundaries = [
+                RoundBoundaryCandidate.model_validate(
+                    normalize_round_boundary_payload(item, clip)
+                )
+                for item in payload
+            ]
+            write_json(
+                output_path,
+                {
+                    "clip": clip.model_dump(),
+                    "round_boundary_candidates": [
+                        boundary.model_dump() for boundary in boundaries
+                    ],
                     "raw_response": raw_response,
                 },
             )

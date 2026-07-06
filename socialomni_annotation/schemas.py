@@ -108,3 +108,25 @@ class SyncOffset(BaseModel):
     raw_start_sec: float = Field(ge=0)
     evidence: str | None = None
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
+class RoundBoundaryCandidate(BaseModel):
+    game_id: str
+    player_id: str
+    clip_id: str
+    round_index: int | None = None
+    aligned_start_sec: float = Field(ge=0)
+    aligned_end_sec: float = Field(gt=0)
+    boundary_type: str
+    evidence: str
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    source_povs: list[str] = Field(default_factory=list)
+    needs_review: bool = False
+
+    @field_validator("aligned_end_sec")
+    @classmethod
+    def validate_boundary_time_order(cls, value: float, info: Any) -> float:
+        start_sec = info.data.get("aligned_start_sec")
+        if start_sec is not None and value <= start_sec:
+            raise ValueError("aligned_end_sec must be greater than aligned_start_sec")
+        return value

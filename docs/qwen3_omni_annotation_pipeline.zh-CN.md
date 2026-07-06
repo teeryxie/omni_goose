@@ -67,17 +67,28 @@ uv run python scripts/mark_game_starts.py --raw-dir data/raw --probe-duration
 docs/goose_goose_duck_common_knowledge.zh-CN.md
 ```
 
-## 2. 本地切片
+## 2. 生成 Qwen3-Omni 审查窗口
+
+这里生成的是 Qwen3-Omni 输入审查窗口，不是最终回合切分结果。窗口长度、overlap 和 `clip_id` 只用于让模型分段读取长视频，不能直接写成 `round_start` / `round_end`。
+
+最终回合边界必须由 Qwen3-Omni 基于视频内容推理得到，并保留可审查证据、置信度和来源 POV。禁止用固定时长、固定 gap、均匀切分或纯聚类结果直接决定一局游戏内的回合边界。
 
 ```bash
 uv run python scripts/split_raw_videos.py --overwrite
 ```
 
-默认参数：
+审查窗口参数：
 
-- 每段 `90` 秒
-- overlap `10` 秒
+- 窗口长度是模型输入工程参数，不代表回合长度
+- overlap 用于避免语义边界落在窗口边缘
 - clip_id：`{game_id}_{player_id}_{start_sec}_{end_sec}`
+
+推荐流程：
+
+1. 先生成带 overlap 的审查窗口。
+2. 让 Qwen3-Omni 在窗口内识别游戏语义边界，输出 evidence 和 confidence。
+3. 融合多 POV 结果，确认 `game -> round/phase -> event -> aligned clip` 层级。
+4. 用同步 offset 把对齐时间换回各 POV 原始视频时间后再裁剪。
 
 只检查命令、不写文件：
 
@@ -162,6 +173,8 @@ uv run python scripts/build_candidate_trials.py
 ```
 
 这些脚本生成的是初步结构化结果，后续可再替换为 Qwen 辅助融合版本。
+
+`merge_global_events` 和候选 trial 结果只是候选/初稿。最终回合组织必须经过 Qwen3-Omni 语义边界融合和人工抽查；没有清晰证据的边界应标为待复核，不能自动落成最终标注。
 
 ## 6. 测试
 

@@ -37,6 +37,7 @@ config/.env.*
 /annotations_qwen/
 /goose_data/
 /runs/
+/benchmark/
 /results/*
 !/results/.gitkeep
 
@@ -107,3 +108,15 @@ node_modules/
 
 # Local OMX state
 .omx/
+
+# Local iterative benchmark patch scripts
+/tmp_pass*.py
+/tmp_pass*_*.py
+/work/
+/.codex_tmp_sync/
+/__pycache__/
+
+# Local clean benchmark archives; the unpacked clean benchmark directory is tracked intentionally.
+/release/*.tar
+/release/*.tar.gz
+/release/*.zip

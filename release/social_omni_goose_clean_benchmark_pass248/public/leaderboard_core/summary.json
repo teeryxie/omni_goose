@@ -1,0 +1,7 @@
+{
+  "benchmark": "SocialOmni-Goose",
+  "leaderboard_core_trials": 889,
+  "public_files": "model-facing inputs only; scorer answers are under scorer_private",
+  "raw_video_smoke_trials": 48,
+  "version": "pass248_death_skill_scope_audit"
+}

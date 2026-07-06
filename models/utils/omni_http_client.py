@@ -14,6 +14,7 @@ class OmniHttpClient:
     def __init__(self, server_url: str) -> None:
         self.server_url = server_url.rstrip("/")
         self.logger = logging.getLogger("models.utils.omni_http_client")
+        self.timeout_sec = float(os.getenv("OMNI_HTTP_TIMEOUT_SEC", "300"))
 
     def _extract_clean_answer(self, raw_answer: str) -> str:
         if not raw_answer:
@@ -57,7 +58,7 @@ class OmniHttpClient:
                             "use_audio": str(use_audio).lower(),
                             "visual_mask": str(visual_mask).lower(),
                         },
-                        timeout=300,
+                        timeout=self.timeout_sec,
                     )
 
                 if response.status_code == 200:

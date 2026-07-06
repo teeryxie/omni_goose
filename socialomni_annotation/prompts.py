@@ -160,3 +160,36 @@ raw_duration_sec={duration_sec}
 game_id, player_id, raw_start_sec, evidence, confidence。
 raw_start_sec 使用原始录屏时间秒数，confidence 是 0 到 1 的数字。
 """
+
+
+def round_boundary_prompt(clip: Clip) -> str:
+    return f"""你是《鹅鸭杀》多视角录像的回合/阶段边界审查员。
+请真实理解这个 POV 审查窗口，找出一局游戏内部的语义边界候选，用于后续 game -> round/phase -> event -> aligned clip 组织。
+
+{GOOSE_COMMON_KNOWLEDGE}
+
+片段信息：{_clip_context(clip)}
+
+强约束：
+- 这个视频窗口只是模型输入，不是回合边界。
+- 禁止按固定 90 秒、固定窗口、固定 gap、均匀切分或纯聚类生成边界。
+- 只有看到或听到明确证据时才输出边界候选；没有可靠边界时输出 []。
+- 边界必须基于游戏语义，例如：游戏正式开始、会议/报警/尸体报告开始、投票结果、玩家被放逐、返回游戏、阶段切换、下一次会议或结果跳出。
+- 第一个片段应从游戏开始到第一次会议投票出第一个人的语义结束点。
+- 后续片段应从返回游戏或新阶段开始，到下一次跳出/会议/投票/结果/阶段边界。
+- 如果证据不足但疑似边界，请设置 needs_review=true，并在 evidence 写清楚不确定点。
+- 如果窗口主要是结算、胜利画面、观战、等待房或重复静态 UI，且没有新的阶段切换，请输出 []。
+- 最多输出 3 个最重要的边界候选，不要逐秒描述画面，不要重复同一句 evidence。
+
+只输出 JSON 数组，不要输出 Markdown。每个元素必须包含：
+game_id, player_id, clip_id, round_index, aligned_start_sec, aligned_end_sec,
+boundary_type, evidence, confidence, source_povs, needs_review。
+
+字段要求：
+- aligned_start_sec / aligned_end_sec 使用对齐后的全局秒数，必须落在片段 aligned_time 范围内。
+- boundary_type 用简洁英文，例如 game_start, meeting_start, vote_result, ejection,
+  return_to_game, phase_end, meeting_or_alert, uncertain_boundary。
+- evidence 用中文，必须说明画面或语音里的具体依据，控制在 40 字以内。
+- source_povs 至少包含当前 player_id。
+- confidence 是 0 到 1 的数字。
+"""
